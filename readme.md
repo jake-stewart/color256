@@ -2,6 +2,8 @@
 
 Generate a full 256 palette from base16 your colors.
 
+https://github.com/user-attachments/assets/d44f3955-e6b7-4942-9b91-3f9dc907e0dc
+
 ### Usage
 ```
 python3 main.py --generate kitty some_theme.txt > theme.conf
