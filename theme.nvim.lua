@@ -42,7 +42,6 @@ local function create_theme(t)
     vim.o.termguicolors = false
 
     local hl = vim.api.nvim_set_hl
-    local sign = vim.fn.sign_define
     local highlights = {}
     local function add_highlight(k, v)
         if v == nil then
@@ -93,11 +92,21 @@ local function create_theme(t)
             end
             highlights[k] = opts
             if v.sign then
-                sign(k, {
-                    culhl = "CursorLineSign",
-                    texthl = k,
-                    text = v.sign,
-                })
+                local function forallsev(v)
+                  return {
+                    [vim.diagnostic.severity.ERROR] = v,
+                    [vim.diagnostic.severity.WARN] = v,
+                    [vim.diagnostic.severity.INFO] = v,
+                    [vim.diagnostic.severity.HINT] = v,
+                  }
+                end
+                vim.diagnostic.config {
+                  signs = {
+                    culhl = forallsev("CursorLineSign"),
+                    texthl = forallsev(k),
+                    text = forallsev(v.sign),
+                  },
+                }
             end
             return opts
         end
