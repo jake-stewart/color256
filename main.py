@@ -297,7 +297,7 @@ def generate_palette(theme):
         i = 1
         while i < 100:
             theme[0] = adjust_lightness(theme.bg, -i)
-            if lightness_contrast(theme.bg, theme[0]) > 4:
+            if lightness_contrast(theme.bg, theme[0]) > 2:
                 break;
             i += 1
 
