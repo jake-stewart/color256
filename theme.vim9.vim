@@ -104,11 +104,6 @@ def CreateTheme(theme: dict<any>)
             
             highlights[k] = opts
             
-            if has_key(v, 'sign')
-                execute printf('sign define %s texthl=%s text=%s culhl=CursorLineSign',
-                    k, k, v.sign)
-            endif
-            
             return opts
         endif
     enddef

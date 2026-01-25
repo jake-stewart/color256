@@ -32,7 +32,6 @@ end
 ---@field undercurl? true
 ---@field strikethrough? true
 ---@field reverse? true
----@field sign? string
 ---@field [integer] string Groups to extend from
 
 ---@param t table<string, string | HighlightOpts>
@@ -42,7 +41,6 @@ local function create_theme(t)
     vim.o.termguicolors = false
 
     local hl = vim.api.nvim_set_hl
-    local sign = vim.fn.sign_define
     local highlights = {}
     local function add_highlight(k, v)
         if v == nil then
@@ -92,13 +90,6 @@ local function create_theme(t)
                 hl(0, k, { link = v[1] })
             end
             highlights[k] = opts
-            if v.sign then
-                sign(k, {
-                    culhl = "CursorLineSign",
-                    texthl = k,
-                    text = v.sign,
-                })
-            end
             return opts
         end
     end
@@ -164,11 +155,11 @@ create_theme({
     DiagnosticUnderlineInfo = "DiagnosticInfo",
     DiagnosticUnderlineOk = "DiagnosticOk",
 
-    DiagnosticSignError = { "DiagnosticError", sign = ">>" },
-    DiagnosticSignWarn = { "DiagnosticWarn", sign = ">>" },
-    DiagnosticSignHint = { "DiagnosticHint", sign = ">>" },
-    DiagnosticSignInfo = { "DiagnosticInfo", sign = ">>" },
-    DiagnosticSignOk = { "DiagnosticOk", sign = ">>" },
+    DiagnosticSignError = "DiagnosticError",
+    DiagnosticSignWarn = "DiagnosticWarn",
+    DiagnosticSignHint = "DiagnosticHint",
+    DiagnosticSignInfo = "DiagnosticInfo",
+    DiagnosticSignOk = "DiagnosticOk",
 
     DiagnosticUnnecessary = { fg = GREY },
 

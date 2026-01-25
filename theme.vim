@@ -102,11 +102,6 @@ function! s:CreateTheme(theme)
             
             let a:highlights[a:k] = l:opts
             
-            if has_key(a:v, 'sign')
-                execute printf('sign define %s texthl=%s text=%s culhl=CursorLineSign',
-                    \ a:k, a:k, a:v.sign)
-            endif
-            
             return l:opts
         endif
     endfunction
