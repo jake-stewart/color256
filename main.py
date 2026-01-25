@@ -13,8 +13,8 @@ def hex_to_rgb(hex_color):
 def rgb_to_hex(rgb):
     return f"{rgb[0]:02x}{rgb[1]:02x}{rgb[2]:02x}"
 
-def hex_to_lab(hex_color):
-    r, g, b = [c / 255 for c in hex_to_rgb(hex_color)]
+def rgb_to_lab(rgb):
+    r, g, b = [c / 255 for c in rgb]
     r, g, b = [
         c/12.92 if c <= 0.04045 else ((c+0.055)/1.055)**2.4
             for c in (r, g, b)
@@ -30,7 +30,7 @@ def hex_to_lab(hex_color):
     ]
     return 116*fy - 16, 500*(fx - fy), 200*(fy - fz)
 
-def lab_to_hex(l, a, b):
+def lab_to_rgb(l, a, b):
     fy = (l + 16) / 116
     fx = a / 500 + fy
     fz = fy - b / 200
@@ -49,21 +49,21 @@ def lab_to_hex(l, a, b):
     r = max(0, min(255, int(r * 255 + 0.5)))
     g = max(0, min(255, int(g * 255 + 0.5)))
     b_rgb = max(0, min(255, int(b_lin * 255 + 0.5)))
-    return rgb_to_hex((r, g, b_rgb))
+    return (r, g, b_rgb)
 
 def lightness_contrast(a, b):
-    l1, _, _ = hex_to_lab(a)
-    l2, _, _ = hex_to_lab(b)
+    l1, _, _ = rgb_to_lab(a)
+    l2, _, _ = rgb_to_lab(b)
     return abs(l1 - l2)
 
-def adjust_lightness(hex_color, l_delta):
-    l, a, b = hex_to_lab(hex_color)
+def adjust_lightness(rgb, l_delta):
+    l, a, b = rgb_to_lab(rgb)
     new_l = max(0, min(100, l + l_delta))
-    return lab_to_hex(new_l, a, b)
+    return lab_to_rgb(new_l, a, b)
 
-def is_light_theme(bg_hex, fg_hex):
-    bg_l, _, _ = hex_to_lab(bg_hex)
-    fg_l, _, _ = hex_to_lab(fg_hex)
+def is_light_theme(bg_rgb, fg_rgb):
+    bg_l, _, _ = rgb_to_lab(bg_rgb)
+    fg_l, _, _ = rgb_to_lab(fg_rgb)
     return bg_l > fg_l
 
 class Style:
@@ -223,15 +223,15 @@ def generate_palette(theme):
             return tuple((1-t)*c1[i] + t*c2[i] for i in range(3))
         final = lerp(rgb[2],
             lerp(rgb[1],
-                lerp(rgb[0], hex_to_rgb(theme.bg), hex_to_rgb(theme[1])),
-                lerp(rgb[0], hex_to_rgb(theme[2]), hex_to_rgb(theme[3]))
+                lerp(rgb[0], theme.bg, theme[1]),
+                lerp(rgb[0], theme[2], theme[3])
             ),
             lerp(rgb[1],
-                lerp(rgb[0], hex_to_rgb(theme[4]), hex_to_rgb(theme[5])),
-                lerp(rgb[0], hex_to_rgb(theme[6]), hex_to_rgb(theme.fg))
+                lerp(rgb[0], theme[4], theme[5]),
+                lerp(rgb[0], theme[6], theme.fg)
             )
         )
-        return rgb_to_hex([int(round(c)) for c in final])
+        return tuple(int(round(c)) for c in final)
 
     def generate_rgb_cube(theme, dark_adjust=0.0):
         colors = []
@@ -249,13 +249,13 @@ def generate_palette(theme):
 
     def generate_grayscale(theme, dark_adjust=0.0):
         colors = []
-        bg = hex_to_rgb(theme.bg)
-        fg = hex_to_rgb(theme.fg)
+        bg = theme.bg
+        fg = theme.fg
         for i in range(24):
             t = (i + 1) / 25
             t = t * (t ** dark_adjust)
-            rgb = tuple(int((1 - t) * bg[i] + t * fg[i]) for i in range(3))
-            colors.append(rgb_to_hex(rgb))
+            rgb = tuple(int((1 - t) * bg[j] + t * fg[j]) for j in range(3))
+            colors.append(rgb)
         return colors
 
     def find_good_contrast_palette(theme):
@@ -315,7 +315,7 @@ def generate_palette(theme):
 class Theme:
     def __init__(self, name, palette, bg=None, fg=None):
         self.name = name
-        self.palette = palette
+        self.palette = palette  # Now stores RGB tuples
         self.bg = bg or palette[0]
         self.fg = fg or palette[7]
 
@@ -351,7 +351,8 @@ def parse_theme(fname):
         "cyan",
         "white",
     ]
-    palette = BASELINE_BASE_16[:8] + [None for _ in range(8)]
+    # Store as RGB tuples instead of hex strings
+    palette = [hex_to_rgb(c) for c in BASELINE_BASE_16[:8]] + [None for _ in range(8)]
     name = None
     fg=None
     bg=None
@@ -369,7 +370,7 @@ def parse_theme(fname):
         match = hex_key_re.search(line)
         if match:
             key = match.group(1).lower()
-            color = match.group(2)
+            color = hex_to_rgb(match.group(2))
             if "cursor" in key or "selection" in key:
                 pass
             elif "foreground" in key or "fg" in key:
@@ -412,9 +413,9 @@ def parse_theme(fname):
         match = hex_re.search(line)
         if match:
             if idx < len(palette):
-                palette[idx] = match.group(1)
+                palette[idx] = hex_to_rgb(match.group(1))
             elif idx == len(palette):
-                palette.append(match.group(1))
+                palette.append(hex_to_rgb(match.group(1)))
             idx += 1
             continue
 
@@ -424,15 +425,14 @@ def parse_theme(fname):
             palette_group = None
         elif "dim" in line or "faint" in line:
             palette_group = "dim"
+    
     for i in range(8):
         color = palette[i]
         assert color
         bright = palette[i + 8]
-        palette[i] = color.lstrip("#")
-        if bright:
-            palette[i + 8] = bright.lstrip("#")
-        else:
+        if bright is None:
             palette[i + 8] = palette[i]
+    
     instance = Theme(
         name or os.path.split(os.path.splitext(fname)[0])[-1],
         palette,
@@ -445,7 +445,7 @@ def apply_color(type_index, palette_index, color):
     codes = [str(type_index)]
     if palette_index is not None:
         codes.append(str(palette_index))
-    codes.append("rgb:" + "/".join(f"{c:02x}" for c in hex_to_rgb(color)))
+    codes.append("rgb:" + "/".join(f"{c:02x}" for c in color))
     print(f"\033]{';'.join(codes)}\033\\", end="")
 
 def apply_theme(theme):
@@ -457,52 +457,52 @@ def apply_theme(theme):
 
 def generate_base8_theme(theme):
     buffer = [];
-    buffer.append("#%s" % theme.bg)
+    buffer.append("#%s" % rgb_to_hex(theme.bg))
     for i in range(1, 7):
-        buffer.append("#%s" % theme[i])
-    buffer.append("#%s" % theme.fg)
+        buffer.append("#%s" % rgb_to_hex(theme[i]))
+    buffer.append("#%s" % rgb_to_hex(theme.fg))
     return "\n".join(buffer)
 
 def generate_kitty_theme(theme):
     buffer = [];
-    buffer.append("background #%s" % theme.bg)
-    buffer.append("foreground #%s" % theme.fg)
-    buffer.append("cursor #%s" % theme.fg)
-    buffer.append("selection_background #%s" % theme.selection)
+    buffer.append("background #%s" % rgb_to_hex(theme.bg))
+    buffer.append("foreground #%s" % rgb_to_hex(theme.fg))
+    buffer.append("cursor #%s" % rgb_to_hex(theme.fg))
+    buffer.append("selection_background #%s" % rgb_to_hex(theme.selection))
     buffer.append("selection_foreground none")
     for i in range(0, 256):
-        buffer.append("color%d #%s" % (i, theme[i]))
+        buffer.append("color%d #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
 def generate_ghostty_theme(theme):
     buffer = [];
-    buffer.append("background = #%s" % theme.bg)
-    buffer.append("foreground = #%s" % theme.fg)
-    buffer.append("cursor = #%s" % theme.fg)
-    buffer.append("selection-background = #%s" % theme.selection)
+    buffer.append("background = #%s" % rgb_to_hex(theme.bg))
+    buffer.append("foreground = #%s" % rgb_to_hex(theme.fg))
+    buffer.append("cursor = #%s" % rgb_to_hex(theme.fg))
+    buffer.append("selection-background = #%s" % rgb_to_hex(theme.selection))
     buffer.append("selection-foreground = cell-foreground")
     for i in range(0, 256):
-        buffer.append("palette = %d = #%s" % (i, theme[i]))
+        buffer.append("palette = %d = #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
 def generate_wezterm_theme(theme):
     buffer = [];
     buffer.append("colors = {")
-    buffer.append('    background = "#%s",' % theme.bg)
-    buffer.append('    foreground = "#%s",' % theme.fg)
-    buffer.append('    cursor_bg = "#%s",' % theme.fg)
-    buffer.append('    cursor_border = "#%s",' % theme.fg)
+    buffer.append('    background = "#%s",' % rgb_to_hex(theme.bg))
+    buffer.append('    foreground = "#%s",' % rgb_to_hex(theme.fg))
+    buffer.append('    cursor_bg = "#%s",' % rgb_to_hex(theme.fg))
+    buffer.append('    cursor_border = "#%s",' % rgb_to_hex(theme.fg))
     buffer.append('    ansi = {')
     for i in range(0, 8):
-        buffer.append('        "#%s",' % theme[i])
+        buffer.append('        "#%s",' % rgb_to_hex(theme[i]))
     buffer.append('    },')
     buffer.append('    brights = {')
     for i in range(8, 16):
-        buffer.append('        "#%s",' % theme[i])
+        buffer.append('        "#%s",' % rgb_to_hex(theme[i]))
     buffer.append('    },')
     buffer.append('    indexed = {')
     for i in range(16, 256):
-        buffer.append('        [%d] = "#%s",' % (i, theme[i]))
+        buffer.append('        [%d] = "#%s",' % (i, rgb_to_hex(theme[i])))
     buffer.append('    }')
     buffer.append('}')
     return "\n".join(buffer)
@@ -510,55 +510,55 @@ def generate_wezterm_theme(theme):
 def generate_alacritty_theme(theme):
     buffer = []
     buffer.append("[colors.primary]")
-    buffer.append("background = '#%s'" % theme.bg)
-    buffer.append("foreground = '#%s'" % theme.fg)
-    buffer.append("cursor = { text = 'CellForeground', cursor = '#%s' }" % theme.fg)
-    buffer.append("selection = { text = 'CellForeground', background = '#%s' }" % theme.selection)
+    buffer.append("background = '#%s'" % rgb_to_hex(theme.bg))
+    buffer.append("foreground = '#%s'" % rgb_to_hex(theme.fg))
+    buffer.append("cursor = { text = 'CellForeground', cursor = '#%s' }" % rgb_to_hex(theme.fg))
+    buffer.append("selection = { text = 'CellForeground', background = '#%s' }" % rgb_to_hex(theme.selection))
     buffer.append("[colors.normal]")
     color_names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
     for i in range(0, 8):
-        buffer.append("%s = '#%s'" % (color_names[i], theme[i]))
+        buffer.append("%s = '#%s'" % (color_names[i], rgb_to_hex(theme[i])))
     buffer.append("[colors.bright]")
     for i in range(8, 16):
-        buffer.append("%s = '#%s'" % (color_names[i-8], theme[i]))
+        buffer.append("%s = '#%s'" % (color_names[i-8], rgb_to_hex(theme[i])))
     buffer.append("indexed_colors = [")
     for i in range(16, 256):
-        buffer.append("    { index = %d, color = '#%s' }," % (i, theme[i]))
+        buffer.append("    { index = %d, color = '#%s' }," % (i, rgb_to_hex(theme[i])))
     buffer.append("]")
     return "\n".join(buffer)
 
 def generate_foot_theme(theme):
     buffer = []
     buffer.append("[colors]")
-    buffer.append("background=%s" % theme.bg)
-    buffer.append("foreground=%s" % theme.fg)
-    buffer.append("cursor=%s %s" % (theme.bg, theme.fg))
-    buffer.append("selection-background=%s" % theme.selection)
+    buffer.append("background=%s" % rgb_to_hex(theme.bg))
+    buffer.append("foreground=%s" % rgb_to_hex(theme.fg))
+    buffer.append("cursor=%s %s" % (rgb_to_hex(theme.bg), rgb_to_hex(theme.fg)))
+    buffer.append("selection-background=%s" % rgb_to_hex(theme.selection))
     for i in range(0, 8):
-        buffer.append("regular%d=%s" % (i, theme[i]))
+        buffer.append("regular%d=%s" % (i, rgb_to_hex(theme[i])))
     for i in range(8, 16):
-        buffer.append("bright%d=%s" % (i-8, theme[i]))
+        buffer.append("bright%d=%s" % (i-8, rgb_to_hex(theme[i])))
     for i in range(16, 256):
-        buffer.append("%d=%s" % (i, theme[i]))
+        buffer.append("%d=%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
 # https://github.com/Roliga/urxvt-xresources-256
 def generate_xresources_theme(theme):
     buffer = []
-    buffer.append("*.foreground: #%s" % theme.fg)
-    buffer.append("*.background: #%s" % theme.bg)
-    buffer.append("*.cursorColor: #%s" % theme.fg)
+    buffer.append("*.foreground: #%s" % rgb_to_hex(theme.fg))
+    buffer.append("*.background: #%s" % rgb_to_hex(theme.bg))
+    buffer.append("*.cursorColor: #%s" % rgb_to_hex(theme.fg))
     for i in range(256):
-        buffer.append("*.color%d: #%s" % (i, theme[i]))
+        buffer.append("*.color%d: #%s" % (i, rgb_to_hex(theme[i])))
     return "\n".join(buffer)
 
 def generate_st_theme(theme):
     buffer = []
     buffer.append("static const char *colorname[] = {")
     for i in range(256):
-        buffer.append('\t"#%s",' % theme[i])
-    buffer.append('\t"#%s",' % theme.bg)
-    buffer.append('\t"#%s",' % theme.fg)
+        buffer.append('\t"#%s",' % rgb_to_hex(theme[i]))
+    buffer.append('\t"#%s",' % rgb_to_hex(theme.bg))
+    buffer.append('\t"#%s",' % rgb_to_hex(theme.fg))
     buffer.append("};")
     buffer.append("unsigned int defaultbg = 256;");
     buffer.append("unsigned int defaultfg = 257;");
@@ -578,7 +578,7 @@ GENERATE_LOOKUP = {
 
 def preview_theme(name, palette, fg=None, bg=None):
     def color_str(index, text, background=True):
-        hex_color = bg if index is None else palette[index]
+        rgb_color = bg if index is None else palette[index]
         index = index or 0
         if 16 <= index <= 231:
             idx = index - 16
@@ -594,11 +594,11 @@ def preview_theme(name, palette, fg=None, bg=None):
             dark = index % 8 == 0
         if background:
             if dark:
-                return Block(Style(fg=fg, bg=hex_color).apply(text), width=len(text))
+                return Block(Style(fg=fg, bg=rgb_color).apply(text), width=len(text))
             else:
-                return Block(Style(fg=hex_color, bg=bg, reverse=True).apply(text), width=len(text))
+                return Block(Style(fg=rgb_color, bg=bg, reverse=True).apply(text), width=len(text))
         else:
-            return Block(Style(fg=hex_color, bg=bg).apply(text), width=len(text))
+            return Block(Style(fg=rgb_color, bg=bg).apply(text), width=len(text))
 
     def grey_block(from_idx, to_idx, vertical=True):
         def ansi_greyscale_index(grey_idx):
@@ -646,7 +646,7 @@ def preview_theme(name, palette, fg=None, bg=None):
                     indexes[1] += 5 if g_enable else i
                     indexes[2] += 5 if b_enable else i
                 for i in range(len(indexes)):
-                    indexes[i] //= len(colors)
+                    indexes[i] //= len(indexes)
                 r, g, b = indexes;
                 index = 16 + r * 36 + g * 6 + b
                 brightness = (r + g + b) / 16
@@ -722,23 +722,21 @@ BASELINE_BASE_16 = [
 ]
 
 BASELINE_RGB = [
-    f"{(0 if r == 0 else 55 + r * 40):02x}"
-    f"{(0 if g == 0 else 55 + g * 40):02x}"
-    f"{(0 if b == 0 else 55 + b * 40):02x}"
+    (0 if r == 0 else 55 + r * 40,
+     0 if g == 0 else 55 + g * 40,
+     0 if b == 0 else 55 + b * 40)
     for r in range(6)
     for g in range(6)
     for b in range(6)
 ]
 
 BASELINE_GREYSCALE = [
-    f"{(8 + i * 10):02x}"
-    f"{(8 + i * 10):02x}"
-    f"{(8 + i * 10):02x}"
+    (8 + i * 10, 8 + i * 10, 8 + i * 10)
     for i in range(24)
 ]
 
 BASELINE_THEME = Theme("Default",
-    BASELINE_BASE_16 + BASELINE_RGB + BASELINE_GREYSCALE)
+    [hex_to_rgb(c) for c in BASELINE_BASE_16] + BASELINE_RGB + BASELINE_GREYSCALE)
 
 def main():
     parser = ArgumentParser()
