@@ -227,7 +227,7 @@ create_theme({
 
     Folded = "GreyFg2",
 
-    DiffDelete = { fg = rgb(1, 0, 0) },
+    DiffDelete = { bg = rgb(1, 0, 0) },
     DiffAdd = { bg = rgb(0, 1, 0) },
     DiffChange = {},
 

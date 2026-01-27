@@ -220,7 +220,7 @@ call s:CreateTheme({
     \
     \ 'Folded': 'GreyFg2',
     \
-    \ 'DiffDelete': {'fg': s:Rgb(1, 0, 0)},
+    \ 'DiffDelete': {'bg': s:Rgb(1, 0, 0)},
     \ 'DiffAdd': {'bg': s:Rgb(0, 1, 0)},
     \ 'DiffChange': {},
     \ })

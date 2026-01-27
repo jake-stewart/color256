@@ -222,7 +222,7 @@ CreateTheme({
 
     Folded: 'GreyFg2',
 
-    DiffDelete: {fg: Rgb(1, 0, 0)},
+    DiffDelete: {bg: Rgb(1, 0, 0)},
     DiffAdd: {bg: Rgb(0, 1, 0)},
     DiffChange: {},
 })
