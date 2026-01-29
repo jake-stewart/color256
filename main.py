@@ -686,10 +686,10 @@ def preview_theme(name, palette, fg=None, bg=None):
 
 
 BASELINE_BASE_16 = [
-    "000000", "800000", "008000", "808000",
-    "000080", "800080", "008080", "c0c0c0",
-    "808080", "ff0000", "00ff00", "ffff00",
-    "0000ff", "ff00ff", "00ffff", "ffffff",
+    "000000", "cc0403", "19cb00", "cecb00",
+    "0d73cc", "cb1ed1", "0dcdcd", "dddddd",
+    "767676", "f2201f", "23fd00", "fffd00",
+    "1a8fff", "fd28ff", "14ffff", "ffffff",
 ]
 
 BASELINE_RGB = [
