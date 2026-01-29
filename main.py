@@ -244,7 +244,7 @@ def generate_palette(base16, bg, fg):
         return tuple((1 - t) * c1[i] + t * c2[i] for i in range(3))
 
     def calc_contrast_adjust(color, shade, num_shades,
-                             target_contrast=1.05, adjustment_intensity=1.5):
+                             target_contrast, adjustment_intensity=1.5):
         t = shade / (num_shades - 1)
         contrast = contrast_ratio(lerp_color(t, bg, color), bg)
         return (contrast / target_contrast) ** adjustment_intensity
@@ -252,10 +252,10 @@ def generate_palette(base16, bg, fg):
     NUM_GREY_SHADES = 26 # (BG, 24 shade greyscale ramp, FG)
     NUM_RGB_SHADES = 6
 
-    r_contrast_adjust = calc_contrast_adjust(base16[1], 1, NUM_RGB_SHADES)
-    g_contrast_adjust = calc_contrast_adjust(base16[2], 1, NUM_RGB_SHADES)
-    b_contrast_adjust = calc_contrast_adjust(base16[4], 1, NUM_RGB_SHADES)
-    grey_contrast_adjust = calc_contrast_adjust(fg, 2, NUM_GREY_SHADES)
+    r_contrast_adjust = calc_contrast_adjust(base16[1], 1, NUM_RGB_SHADES, 1.25)
+    g_contrast_adjust = calc_contrast_adjust(base16[2], 1, NUM_RGB_SHADES, 1.25)
+    b_contrast_adjust = calc_contrast_adjust(base16[4], 1, NUM_RGB_SHADES, 1.25)
+    grey_contrast_adjust = calc_contrast_adjust(fg, 2, NUM_GREY_SHADES, target_contrast=1.10)
 
     palette = [*base16]
 
