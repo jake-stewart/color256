@@ -123,8 +123,8 @@ shade:
 
 ![poor readability example](poor-readability-2.png)
 
-If a saturated blue is used instead consistent brightness is
-preserved:
+If a less saturated blue is used instead then the consistent
+brightness is preserved:
 
 ![fixed readability example](fixed-readability-2.png)
 
