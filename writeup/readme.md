@@ -1,4 +1,4 @@
-# Introduction
+## Introduction
 
 Terminals should generate the 256-color palette from the user's
 base16 theme.
@@ -34,12 +34,12 @@ would consider the 256-color palette a viable choice, allowing them
 to use a more expressive color range without requiring added
 complexity or configuration files.
 
-# Understanding the 256 Color Palette
+## Understanding the 256 Color Palette
 
 The 256 palette has a specific layout.  If you are already familiar
 with it, you can skip to the next section.
 
-### The Base 16 Colors
+#### The Base 16 Colors
 
 The first 16 colors form the base16 palette. It contains black,
 white, and all primary and secondary colors, each with normal and
@@ -62,7 +62,7 @@ bright variants.
 14. bright cyan
 15. bright white
 
-### The 216-Color Cube
+#### The 216-Color Cube
 
 The next 216 colors form a 6x6x6 color cube. It works like 24-bit
 RGB but with 6 shades per channel instead of 256.
@@ -74,7 +74,7 @@ and B range from 0 to 5:
 16 + (36 * R) + (6 * G) + B
 ```
 
-### The Grayscale Ramp
+#### The Grayscale Ramp
 
 The final 24 colors form a grayscale ramp between black and white.
 Pure black and white themselves are excluded since they can be found
@@ -87,9 +87,9 @@ shade ranging from 0 to 23:
 232 + S
 ```
 
-# Problems with the 256 Color Palette
+## Problems with the 256 Color Palette
 
-### Clashing with base16
+#### Base16 Clash
 
 The most obvious problem with the 256 palette is the inconsistency
 with the user's base16 theme:
@@ -100,7 +100,7 @@ Using a custom 256 palette gives a more pleasing result:
 
 ![consistent theme](consistent.png)
 
-### Incorrect interpolation
+#### Incorrect Interpolation
 
 The default 216-color cube interpolates between black and each color
 incorrectly. It is shifted towards lighter shades (37% intensity
@@ -114,7 +114,7 @@ is preserved:
 
 ![fixed readability example](fixed-readability-1.png)
 
-### Inconsistent contrast
+#### Inconsistent Contrast
 
 The default 256 palette uses fully saturated colors, leading to
 inconsistent brightness against the black background. Notice that
@@ -129,7 +129,7 @@ preserved:
 ![fixed readability example](fixed-readability-2.png)
 
 
-# Generating the Palette
+## Generating the Palette
 
 These problems can be solved by generating the 256-color palette
 from the user's base16 colors.
@@ -146,16 +146,18 @@ The LAB colorspace should be used to achieve consistent apparent
 brightness across hues of the same shade.
 
 **Solarized with RGB interpolation:**
+
 ![without lab](without-lab.png)
 
 **Solarized with LAB interpolation:**
+
 ![with lab](with-lab.png)
 
 Below is a combined image of many generated themes:
 
 ![example generated themes](example.png)
 
-### Implementation
+#### Implementation
 
 This code is public domain, intended to be modified and used anywhere
 without friction.
@@ -195,7 +197,7 @@ def generate_256_palette(base16, bg=None, fg=None):
     return palette
 ```
 
-# Conclusion
+## Conclusion
 The default palette is an arbitrary and arguably bad theme. Abitrary,
 considering it interpolates from black to white incorrectly, and
 bad in the sense of it having poor readability and inconsistent
