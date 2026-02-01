@@ -207,6 +207,6 @@ Terminals should generate the 256-color palette from the user's
 base16 theme. This would make the palette a viable option considering
 its advantages over truecolor:
 
- - Access to a wide colour palette without needing config files.
+ - Access to a wide color palette without needing config files.
  - Light/dark switching capability without developer effort.
 
