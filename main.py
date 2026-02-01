@@ -32,7 +32,8 @@ def rgb_to_lab(rgb):
     )
     return 116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)
 
-def lab_to_rgb(l, a, b):
+def lab_to_rgb(lab):
+    l, a, b = lab
     fy = (l + 16) / 116
     fx = a / 500 + fy
     fz = fy - b / 200
@@ -56,7 +57,7 @@ def lab_to_rgb(l, a, b):
 def adjust_lightness(rgb, l_delta):
     l, a, b = rgb_to_lab(rgb)
     new_l = clamp(0, 100, l + l_delta)
-    return lab_to_rgb(new_l, a, b)
+    return lab_to_rgb((new_l, a, b))
 
 class Style:
     def __init__(
@@ -218,67 +219,41 @@ def generate_base16_extras(theme):
         if theme[i + 8] == theme[i]:
             l, a, b = rgb_to_lab(theme[i])
             l = clamp(0, 100, l * 1.1)
-            theme[i + 8] = lab_to_rgb(l, a, b)
+            theme[i + 8] = lab_to_rgb((l, a, b))
 
     if theme[0] == theme.bg:
         l = clamp(0, 100, bg_lab[0] * 0.8)
-        theme[0] = lab_to_rgb(l, bg_lab[1], bg_lab[2])
+        theme[0] = lab_to_rgb((l, bg_lab[1], bg_lab[2]))
 
     l = clamp(0, 100, bg_lab[0] + (-20.0 if light else 20))
-    theme[8] = lab_to_rgb(l, bg_lab[1], bg_lab[2])
+    theme[8] = lab_to_rgb((l, bg_lab[1], bg_lab[2]))
 
-def generate_palette(base16, bg, fg):
-    def luminance(rgb):
-        r, g, b = (
-            c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4
-            for c in (c / 255 for c in rgb)
-        )
-        return 0.2126 * r + 0.7152 * g + 0.0722 * b
+def lerp_lab(t, lab1, lab2):
+    return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
 
-    def contrast_ratio(rgb1, rgb2):
-        lum1 = luminance(rgb1)
-        lum2 = luminance(rgb2)
-        return (max(lum1, lum2) + 0.05) / (min(lum1, lum2) + 0.05)
-
-    def lerp_color(t, c1, c2):
-        return tuple((1 - t) * c1[i] + t * c2[i] for i in range(3))
-
-    def calc_contrast_adjust(color, shade, num_shades,
-                             target_contrast, adjustment_intensity=1.5):
-        t = shade / (num_shades - 1)
-        contrast = contrast_ratio(lerp_color(t, bg, color), bg)
-        return (contrast / target_contrast) ** adjustment_intensity
-
-    NUM_GREY_SHADES = 26 # (BG, 24 shade greyscale ramp, FG)
-    NUM_RGB_SHADES = 6
-
-    r_contrast_adjust = calc_contrast_adjust(base16[1], 1, NUM_RGB_SHADES, 1.25)
-    g_contrast_adjust = calc_contrast_adjust(base16[2], 1, NUM_RGB_SHADES, 1.25)
-    b_contrast_adjust = calc_contrast_adjust(base16[4], 1, NUM_RGB_SHADES, 1.25)
-    grey_contrast_adjust = calc_contrast_adjust(fg, 2, NUM_GREY_SHADES, target_contrast=1.10)
+def generate_256_palette(base16, bg=None, fg=None):
+    base8_lab = [rgb_to_lab(c) for c in base16[:8]]
+    bg_lab = rgb_to_lab(bg) if bg else base8_lab[0]
+    fg_lab = rgb_to_lab(fg) if fg else base8_lab[7]
 
     palette = [*base16]
 
-    r_norms = [(r / 5) ** r_contrast_adjust for r in range(6)]
-    g_norms = [(g / 5) ** g_contrast_adjust for g in range(6)]
-    b_norms = [(b / 5) ** b_contrast_adjust for b in range(6)]
-
-    for r_norm in r_norms:
-        c0 = lerp_color(r_norm, bg, base16[1])
-        c1 = lerp_color(r_norm, base16[2], base16[3])
-        c2 = lerp_color(r_norm, base16[4], base16[5])
-        c3 = lerp_color(r_norm, base16[6], fg)
-        for g_norm in g_norms:
-            c4 = lerp_color(g_norm, c0, c1)
-            c5 = lerp_color(g_norm, c2, c3)
-            for b_norm in b_norms:
-                c6 = lerp_color(b_norm, c4, c5)
-                palette.append(tuple(int(round(c)) for c in c6))
+    for r in range(6):
+        c0 = lerp_lab(r / 5, bg_lab, base8_lab[1])
+        c1 = lerp_lab(r / 5, base8_lab[2], base8_lab[3])
+        c2 = lerp_lab(r / 5, base8_lab[4], base8_lab[5])
+        c3 = lerp_lab(r / 5, base8_lab[6], fg_lab)
+        for g in range(6):
+            c4 = lerp_lab(g / 5, c0, c1)
+            c5 = lerp_lab(g / 5, c2, c3)
+            for b in range(6):
+                c6 = lerp_lab(b / 5, c4, c5)
+                palette.append(lab_to_rgb(c6))
 
     for i in range(24):
-        t = ((i + 1) / 25) ** grey_contrast_adjust
-        rgb = lerp_color(t, bg, fg)
-        palette.append(tuple(int(round(c)) for c in rgb))
+        t = (i + 1) / 25
+        lab = lerp_lab(t, bg_lab, fg_lab)
+        palette.append(lab_to_rgb(lab))
 
     return palette
 
@@ -735,7 +710,10 @@ def main():
     for theme in themes:
         if theme != BASELINE_THEME:
             generate_base16_extras(theme)
-            theme.palette = generate_palette(theme[:16], theme.bg, theme.fg)
+            base8 = theme[:8]
+            base8[0] = theme.bg
+            base8[7] = theme.fg
+            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg)
     
     if ns.generate:
         if ns.output is not None:
