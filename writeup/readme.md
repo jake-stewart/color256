@@ -199,9 +199,9 @@ def generate_256_palette(base16, bg=None, fg=None):
 
 ## Conclusion
 The default 256-color palette has room for improvement. Considering
-its poor readability and clash with the user's theme, program authors
-avoid it, opting for the less expressive base16 or more complex
-truecolor.
+its poor readability and its clash with the user's theme, program
+authors avoid it, opting for the less expressive base16 or more
+complex truecolor.
 
 Terminals should generate the 256-color palette from the user's
 base16 theme. This would make the palette a viable option considering
