@@ -134,9 +134,9 @@ preserved:
 These problems can be solved by generating the 256-color palette
 from the user's base16 colors.
 
-The base16 palette has 8 normal colors which perfectly map to the
-8 corners of the 216-color cube. The terminal foreground and
-background should be used instead of the base16 black and white.
+The base16 palette has 8 normal colors which map to the 8 corners
+of the 216-color cube. The terminal foreground and background should
+be used instead of the base16 black and white.
 
 These colors can be used to construct the 216-color cube via trilinear
 interpolation, and the grayscale ramp with a simple background to
