@@ -21,8 +21,8 @@ million colors. But there are drawbacks:
 The 256-color palette sits in the middle with more range than base16
 and less overhead than truecolor. But it has its own issues:
 
-- The default 256 colors clash with most base16 themes.
-- The default 256 colors have poor readability and inconsistent contrast.
+- The default theme clashes with most base16 themes.
+- The default theme has poor readability and inconsistent contrast.
 - Nobody wants to manually define 240 additional colors.
 
 The solution is to generate the extended palette from your existing
