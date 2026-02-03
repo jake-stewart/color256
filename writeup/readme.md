@@ -153,9 +153,13 @@ brightness across hues of the same shade.
 
 ![with lab](with-lab.png)
 
-Below is a combined image of many generated themes:
+Combined image of many generated themes:
 
 ![example generated themes](example.png)
+
+Before and after using 256 palette generation with default colors:
+
+![example before and after](before_after.png)
 
 #### Implementation
 
