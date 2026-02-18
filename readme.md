@@ -8,16 +8,16 @@ https://github.com/user-attachments/assets/d44f3955-e6b7-4942-9b91-3f9dc907e0dc
 
 ```sh
 # view a theme
-python3 main.py themes/century.dark.txt
+python3 color256.py themes/century.dark.txt
 
 # apply a theme temporarily
-python3 main.py --apply themes/century.dark.txt
+python3 color256.py --apply themes/century.dark.txt
 
 # generate a theme
-python3 main.py --generate kitty themes/century.dark.txt > century.dark.conf
+python3 color256.py --generate kitty themes/century.dark.txt > century.dark.conf
 ```
 
-Use `python3 main.py --help` for more options and supported terminals.
+Use `python3 color256.py --help` for more options and supported terminals.
 
 ### Public Domain
 

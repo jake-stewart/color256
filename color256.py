@@ -222,7 +222,7 @@ def generate_base16_extras(theme):
             theme[i + 8] = lab_to_rgb((l, a, b))
 
     if theme[0] == theme.bg:
-        l = clamp(0, 100, bg_lab[0] * 0.8)
+        l = clamp(0, 100, bg_lab[0] - (5 if light else 3))
         theme[0] = lab_to_rgb((l, bg_lab[1], bg_lab[2]))
 
     l = clamp(0, 100, bg_lab[0] + (-20.0 if light else 20))
