@@ -1,6 +1,6 @@
 # 256 color
 
-Generate a full 256 palette from base16 your colors.
+Generate a full 256 palette from base16 your colors. [Terminals should do this by default](https://gist.github.com/jake-stewart/0a8ea46159a7da2c808e5be2177e1783).
 
 https://github.com/user-attachments/assets/d44f3955-e6b7-4942-9b91-3f9dc907e0dc
 

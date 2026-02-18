@@ -455,11 +455,16 @@ def generate_wezterm_theme(theme):
 
 def generate_alacritty_theme(theme):
     buffer = []
+    buffer.append("[colors]")
+    buffer.append("cursor = { text = 'CellForeground', cursor = '#%s' }" % rgb_to_hex(theme.fg))
+    buffer.append("selection = { text = 'CellForeground', background = '#%s' }" % rgb_to_hex(theme.selection))
+    buffer.append("indexed_colors = [")
+    for i in range(16, 256):
+        buffer.append("    { index = %d, color = '#%s' }," % (i, rgb_to_hex(theme[i])))
+    buffer.append("]")
     buffer.append("[colors.primary]")
     buffer.append("background = '#%s'" % rgb_to_hex(theme.bg))
     buffer.append("foreground = '#%s'" % rgb_to_hex(theme.fg))
-    buffer.append("cursor = { text = 'CellForeground', cursor = '#%s' }" % rgb_to_hex(theme.fg))
-    buffer.append("selection = { text = 'CellForeground', background = '#%s' }" % rgb_to_hex(theme.selection))
     buffer.append("[colors.normal]")
     color_names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"]
     for i in range(0, 8):
@@ -467,10 +472,6 @@ def generate_alacritty_theme(theme):
     buffer.append("[colors.bright]")
     for i in range(8, 16):
         buffer.append("%s = '#%s'" % (color_names[i-8], rgb_to_hex(theme[i])))
-    buffer.append("indexed_colors = [")
-    for i in range(16, 256):
-        buffer.append("    { index = %d, color = '#%s' }," % (i, rgb_to_hex(theme[i])))
-    buffer.append("]")
     return "\n".join(buffer)
 
 def generate_foot_theme(theme):
