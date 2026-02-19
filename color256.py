@@ -470,7 +470,7 @@ def generate_256_palette(base16, bg=None, fg=None, harmonious=True):
     bg_lab = to_colorspace(bg) if bg else to_colorspace(base16[0])
     fg_lab = to_colorspace(fg) if fg else to_colorspace(base16[7])
 
-    is_light_theme = bg_lab[0] > 50
+    is_light_theme = fg_lab[0] < bg_lab[0]
     invert = is_light_theme and not harmonious
 
     base8_lab = [
