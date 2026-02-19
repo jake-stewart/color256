@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-from argparse import ArgumentParser
+import argparse
 import os
 import sys
 import re
@@ -466,18 +466,31 @@ def generate_base16_extras(theme):
 def lerp_lab(t, lab1, lab2):
     return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
 
-def generate_256_palette(base16, bg=None, fg=None):
-    base8_lab = [to_colorspace(c) for c in base16[:8]]
-    bg_lab = to_colorspace(bg) if bg else base8_lab[0]
-    fg_lab = to_colorspace(fg) if fg else base8_lab[7]
+def generate_256_palette(base16, bg=None, fg=None, harmonious=True):
+    bg_lab = to_colorspace(bg) if bg else to_colorspace(base16[0])
+    fg_lab = to_colorspace(fg) if fg else to_colorspace(base16[7])
+
+    is_light_theme = bg_lab[0] > 50
+    invert = is_light_theme and not harmonious
+
+    base8_lab = [
+        fg_lab if invert else bg_lab,
+        to_colorspace(base16[1]),
+        to_colorspace(base16[2]),
+        to_colorspace(base16[3]),
+        to_colorspace(base16[4]),
+        to_colorspace(base16[5]),
+        to_colorspace(base16[6]),
+        bg_lab if invert else fg_lab,
+    ]
 
     palette = [*base16]
 
     for r in range(6):
-        c0 = lerp_lab(r / 5, bg_lab, base8_lab[1])
+        c0 = lerp_lab(r / 5, base8_lab[0], base8_lab[1])
         c1 = lerp_lab(r / 5, base8_lab[2], base8_lab[3])
         c2 = lerp_lab(r / 5, base8_lab[4], base8_lab[5])
-        c3 = lerp_lab(r / 5, base8_lab[6], fg_lab)
+        c3 = lerp_lab(r / 5, base8_lab[6], base8_lab[7])
         for g in range(6):
             c4 = lerp_lab(g / 5, c0, c1)
             c5 = lerp_lab(g / 5, c2, c3)
@@ -487,7 +500,7 @@ def generate_256_palette(base16, bg=None, fg=None):
 
     for i in range(24):
         t = (i + 1) / 25
-        lab = lerp_lab(t, bg_lab, fg_lab)
+        lab = lerp_lab(t, base8_lab[0], base8_lab[7])
         palette.append(from_colorspace(lab))
 
     return palette
@@ -747,6 +760,18 @@ def generate_st_theme(theme):
     buffer.append("static unsigned int defaultcs = 257;");
     return "\n".join(buffer)
 
+def generate_tabby_theme(theme):
+    buffer = []
+    buffer.append("name: '%s'" % theme.name)
+    buffer.append("foreground: '#%s'" % rgb_to_hex(theme.fg))
+    buffer.append("background: '#%s'" % rgb_to_hex(theme.bg))
+    buffer.append("cursor: '#%s'" % rgb_to_hex(theme.fg))
+    buffer.append("selection: '#%s'" % rgb_to_hex(theme.selection))
+    buffer.append("colors:")
+    for i in range(256):
+        buffer.append("  - '#%s'" % rgb_to_hex(theme[i]))
+    return "\n".join(buffer)
+
 GENERATE_LOOKUP = {
     'base8': generate_base8_theme,
     'kitty': generate_kitty_theme,
@@ -756,6 +781,7 @@ GENERATE_LOOKUP = {
     'foot': generate_foot_theme,
     'xresources': generate_xresources_theme,
     'st': generate_st_theme,
+    'tabby': generate_tabby_theme,
 }
 
 def preview_theme(name, palette, fg=None, bg=None):
@@ -921,7 +947,7 @@ BASELINE_THEME = Theme("Default",
     [hex_to_rgb(c) for c in BASELINE_BASE_16] + BASELINE_RGB + BASELINE_GREYSCALE)
 
 def main():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
     parser.add_argument("--generate", choices=GENERATE_LOOKUP)
     parser.add_argument("--output", type=str)
@@ -929,6 +955,7 @@ def main():
     parser.add_argument("--adjust-lightness", type=int)
     parser.add_argument("--apply", action="store_true")
     parser.add_argument("--colorspace", choices=COLORSPACES, default=DEFAULT_COLORSPACE)
+    parser.add_argument("--harmonious", default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument("--test", action="store_true")
     ns = parser.parse_args()
 
@@ -953,7 +980,7 @@ def main():
             base8 = theme[:8]
             base8[0] = theme.bg
             base8[7] = theme.fg
-            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg)
+            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg, harmonious=ns.harmonious)
     
     if ns.generate:
         if ns.output is not None:
