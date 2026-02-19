@@ -466,10 +466,64 @@ def generate_base16_extras(theme):
 def lerp_lab(t, lab1, lab2):
     return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
 
+
+def lab2lch(lab):
+    l, a, b = lab
+    c = (a ** 2 + b ** 2) ** 0.5
+    h = 0
+    if abs(a) > 0.0001 or abs(b) > 0.0001:
+        h = math.atan2(b, a)
+        h = (h + 4 * math.pi) % (2 * math.pi)
+    return l, c, h
+
+
+def lch2lab(lch):
+    l, c, h = lch
+    a = math.cos(h) * c
+    b = math.sin(h) * c
+    return l, a, b
+
+
+def generate_primary(black, white, dark, light):
+    l, c, h = lab2lch(lerp_lab(0.5, dark, light))
+    l_black, c_black, _ = lab2lch(black)
+    l_white, c_white, _ = lab2lch(white)
+    l_dark, c_dark, _ = lab2lch(dark)
+    l_light, c_light, _ = lab2lch(light)
+
+    try:
+        l = (
+            (
+                (c_white - c_black) * (l_dark - l_black) * (l_light - l_white)
+                + (c_dark - c_black) * (l_light - l_white) * l_black
+                - (c_light - c_white) * (l_dark - l_black) * l_white
+            ) / (
+                (c_dark - c_black) * (l_light - l_white)
+                - (c_light - c_white) * (l_dark - l_black)
+            )
+        )
+        l = min(max(l, l_dark), l_light)
+
+        c = c_black + (c_dark - c_black) * (l - l_black) / (l_dark - l_black)
+        c = max(c, c_dark, c_light)
+    except ZeroDivisionError:
+        pass
+
+    return lch2lab((l, c, h))
+
+
 def generate_256_palette(base16, bg=None, fg=None):
-    base8_lab = [to_colorspace(c) for c in base16[:8]]
-    bg_lab = to_colorspace(bg) if bg else base8_lab[0]
-    fg_lab = to_colorspace(fg) if fg else base8_lab[7]
+    base16_lab = [to_colorspace(c) for c in base16]
+    bg_lab = to_colorspace(bg) if bg else base16_lab[0]
+    fg_lab = to_colorspace(fg) if fg else base16_lab[7]
+    if bg_lab[0] < fg_lab[0]:
+        black, white = bg_lab, fg_lab
+    else:
+        black, white = fg_lab, bg_lab
+    base8_lab = [
+        generate_primary(black, white, base16_lab[i], base16_lab[i + 8])
+        for i in range(8)
+    ]
 
     palette = [*base16]
 
