@@ -281,18 +281,25 @@ def oklab_gc_to_rgb(lab):
     b8 = clamp(0, 255, int(_linear_to_srgb(max(0, b)) * 255 + 0.5))
     return (r8, g8, b8)
 
+def adjust_lightness_lab(lab, percent_delta: int):
+    l, a, b = lab
+    return (clamp(0, 100, l + percent_delta), a, b)
+
+def adjust_lightness_oklab(oklab, percent_delta: int):
+    l, a, b = oklab
+    return (clamp(0, 1, l + percent_delta / 100), a, b)
+
+
 COLORSPACES = {
-    "lab":   (rgb_to_lab, lab_to_rgb),
-    "oklab": (rgb_to_corrected_oklab, corrected_oklab_to_rgb),
+    "lab":   (rgb_to_lab, lab_to_rgb, adjust_lightness_lab),
+    "oklab": (rgb_to_corrected_oklab, corrected_oklab_to_rgb, adjust_lightness_oklab),
 }
 
 DEFAULT_COLORSPACE = "lab"
-to_colorspace, from_colorspace = COLORSPACES[DEFAULT_COLORSPACE]
+to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[DEFAULT_COLORSPACE]
 
-def adjust_lightness(rgb, l_delta):
-    l, a, b = to_colorspace(rgb)
-    new_l = clamp(0, 100, l + l_delta)
-    return from_colorspace((new_l, a, b))
+def adjust_lightness_rgb(rgb, percent_delta: int):
+    return from_colorspace(adjust_lightness(to_colorspace(rgb), percent_delta))
 
 class Style:
     def __init__(
@@ -457,11 +464,9 @@ def generate_base16_extras(theme):
             theme[i + 8] = from_colorspace((l, a, b))
 
     if theme[0] == theme.bg:
-        l = clamp(0, 100, bg_lab[0] - (5 if light else 3))
-        theme[0] = from_colorspace((l, bg_lab[1], bg_lab[2]))
+        theme[0] = from_colorspace(adjust_lightness(bg_lab, -(5 if light else 3)))
 
-    l = clamp(0, 100, bg_lab[0] + (-20.0 if light else 20))
-    theme[8] = from_colorspace((l, bg_lab[1], bg_lab[2]))
+    theme[8] = from_colorspace(adjust_lightness(bg_lab, (-20 if light else 20)))
 
 def lerp_lab(t, lab1, lab2):
     return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
@@ -959,8 +964,8 @@ def main():
     parser.add_argument("--test", action="store_true")
     ns = parser.parse_args()
 
-    global to_colorspace, from_colorspace
-    to_colorspace, from_colorspace = COLORSPACES[ns.colorspace]
+    global to_colorspace, from_colorspace, adjust_lightness
+    to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[ns.colorspace]
 
     themes = list(map(parse_theme, ns.filenames))
 
@@ -969,10 +974,10 @@ def main():
 
     if ns.adjust_lightness is not None:
         for theme in themes:
-            theme.fg = adjust_lightness(theme.fg, ns.adjust_lightness)
-            theme.bg = adjust_lightness(theme.bg, ns.adjust_lightness)
+            theme.fg = adjust_lightness_rgb(theme.fg, ns.adjust_lightness)
+            theme.bg = adjust_lightness_rgb(theme.bg, ns.adjust_lightness)
             for i in range(min(16, len(theme.palette))):
-                theme[i] = adjust_lightness(theme[i], ns.adjust_lightness)
+                theme[i] = adjust_lightness_rgb(theme[i], ns.adjust_lightness)
 
     for theme in themes:
         if theme != BASELINE_THEME:
