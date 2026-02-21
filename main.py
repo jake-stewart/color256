@@ -512,6 +512,27 @@ def generate_st_theme(theme):
     buffer.append("static unsigned int defaultcs = 257;");
     return "\n".join(buffer)
 
+def generate_windows_terminal_theme(theme):
+    color_names = [
+        "black", "red", "green", "yellow",
+        "blue", "purple", "cyan", "white",
+    ]
+    bright_names = [
+        "brightBlack", "brightRed", "brightGreen", "brightYellow",
+        "brightBlue", "brightPurple", "brightCyan", "brightWhite",
+    ]
+    obj = {}
+    obj["name"] = theme.name
+    obj["background"] = "#%s" % rgb_to_hex(theme.bg)
+    obj["foreground"] = "#%s" % rgb_to_hex(theme.fg)
+    obj["cursorColor"] = "#%s" % rgb_to_hex(theme.fg)
+    obj["selectionBackground"] = "#%s" % rgb_to_hex(theme.selection)
+    for i in range(8):
+        obj[color_names[i]] = "#%s" % rgb_to_hex(theme[i])
+    for i in range(8):
+        obj[bright_names[i]] = "#%s" % rgb_to_hex(theme[i + 8])
+    return json.dumps(obj, indent=4)
+
 GENERATE_LOOKUP = {
     'base8': generate_base8_theme,
     'kitty': generate_kitty_theme,
@@ -521,6 +542,7 @@ GENERATE_LOOKUP = {
     'foot': generate_foot_theme,
     'xresources': generate_xresources_theme,
     'st': generate_st_theme,
+    'windows-terminal': generate_windows_terminal_theme,
 }
 
 def preview_theme(name, palette, fg=None, bg=None):
