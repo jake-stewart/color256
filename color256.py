@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
-from argparse import ArgumentParser
+import argparse
 import os
 import sys
 import re
 import json
+import math
 
 def clamp(low, high, n):
     return max(low, min(high, n))
@@ -54,10 +55,251 @@ def lab_to_rgb(lab):
     b_rgb = clamp(0, 255, int(b_lin * 255 + 0.5))
     return (r, g, b_rgb)
 
-def adjust_lightness(rgb, l_delta):
-    l, a, b = rgb_to_lab(rgb)
-    new_l = clamp(0, 100, l + l_delta)
-    return lab_to_rgb((new_l, a, b))
+def _srgb_to_linear(c):
+    return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+
+def _linear_to_srgb(c):
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1/2.4)) - 0.055
+
+def rgb_to_oklab(rgb):
+    r_s, g_s, b_s = (x / 255.0 for x in rgb)
+    r, g, b = (_srgb_to_linear(c) for c in (r_s, g_s, b_s))
+
+    l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b
+    m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b
+    s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b
+
+    l_ = l ** (1/3)
+    m_ = m ** (1/3)
+    s_ = s ** (1/3)
+
+    L = 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_
+    a = 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_
+    b = 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_
+
+    return (L, a, b)
+
+def oklab_to_rgb(lab):
+    L, a, b = lab
+
+    l_ = L + 0.3963377774 * a + 0.2158037573 * b
+    m_ = L - 0.1055613458 * a - 0.0638541728 * b
+    s_ = L - 0.0894841775 * a - 1.2914855480 * b
+
+    l = l_ ** 3
+    m = m_ ** 3
+    s = s_ ** 3
+
+    r_lin =  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+    g_lin = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+    b_lin = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+
+    r_s = _linear_to_srgb(r_lin)
+    g_s = _linear_to_srgb(g_lin)
+    b_s = _linear_to_srgb(b_lin)
+
+    r8 = clamp(0, 255, int(r_s * 255 + 0.5))
+    g8 = clamp(0, 255, int(g_s * 255 + 0.5))
+    b8 = clamp(0, 255, int(b_s * 255 + 0.5))
+
+    return (r8, g8, b8)
+
+
+def _oklab_to_linear_srgb(L, a, b):
+    l_ = L + 0.3963377774 * a + 0.2158037573 * b
+    m_ = L - 0.1055613458 * a - 0.0638541728 * b
+    s_ = L - 0.0894841775 * a - 1.2914855480 * b
+    l = l_ ** 3
+    m = m_ ** 3
+    s = s_ ** 3
+    r =  4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+    g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+    b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+    return (r, g, b)
+
+def _compute_max_saturation(a_, b_):
+    if -1.88170328 * a_ - 0.80936493 * b_ > 1:
+        k0 = +1.19086277; k1 = +1.76576728; k2 = +0.59662641; k3 = +0.75515197; k4 = +0.56771245
+        wl = +4.0767416621; wm = -3.3077115913; ws = +0.2309699292
+    elif 1.81444104 * a_ - 1.19445276 * b_ > 1:
+        k0 = +0.73956515; k1 = -0.45954404; k2 = +0.08285427; k3 = +0.12541070; k4 = +0.14503204
+        wl = -1.2684380046; wm = +2.6097574011; ws = -0.3413193965
+    else:
+        k0 = +1.35733652; k1 = -0.00915799; k2 = -1.15130210; k3 = -0.50559606; k4 = +0.00692167
+        wl = -0.0041960863; wm = -0.7034186147; ws = +1.7076147010
+
+    S = k0 + k1 * a_ + k2 * b_ + k3 * a_ * a_ + k4 * a_ * b_
+
+    k_l = +0.3963377774 * a_ + 0.2158037573 * b_
+    k_m = -0.1055613458 * a_ - 0.0638541728 * b_
+    k_s = -0.0894841775 * a_ - 1.2914855480 * b_
+
+    l_ = 1.0 + S * k_l
+    m_ = 1.0 + S * k_m
+    s_ = 1.0 + S * k_s
+
+    l = l_ * l_ * l_
+    m = m_ * m_ * m_
+    s = s_ * s_ * s_
+
+    l_dS = 3.0 * k_l * l_ * l_
+    m_dS = 3.0 * k_m * m_ * m_
+    s_dS = 3.0 * k_s * s_ * s_
+
+    l_dS2 = 6.0 * k_l * k_l * l_
+    m_dS2 = 6.0 * k_m * k_m * m_
+    s_dS2 = 6.0 * k_s * k_s * s_
+
+    f  = wl * l     + wm * m     + ws * s
+    f1 = wl * l_dS  + wm * m_dS  + ws * s_dS
+    f2 = wl * l_dS2 + wm * m_dS2 + ws * s_dS2
+
+    S = S - f * f1 / (f1 * f1 - 0.5 * f * f2)
+
+    return S
+
+def _find_cusp(a_, b_):
+    S_cusp = _compute_max_saturation(a_, b_)
+    rgb = _oklab_to_linear_srgb(1, S_cusp * a_, S_cusp * b_)
+    L_cusp = (1.0 / max(max(rgb[0], rgb[1]), max(rgb[2], 0.0))) ** (1/3)
+    C_cusp = L_cusp * S_cusp
+    return (L_cusp, C_cusp)
+
+def _find_gamut_intersection(a_, b_, L1, C1, L0, cusp):
+    cusp_L, cusp_C = cusp
+    if ((L1 - L0) * cusp_C - (cusp_L - L0) * C1) <= 0:
+        t = cusp_C * L0 / (C1 * cusp_L + cusp_C * (L0 - L1))
+    else:
+        t = cusp_C * (L0 - 1.0) / (C1 * (cusp_L - 1.0) + cusp_C * (L0 - L1))
+
+        dL = L1 - L0
+        dC = C1
+
+        k_l = +0.3963377774 * a_ + 0.2158037573 * b_
+        k_m = -0.1055613458 * a_ - 0.0638541728 * b_
+        k_s = -0.0894841775 * a_ - 1.2914855480 * b_
+
+        l_dt = dL + dC * k_l
+        m_dt = dL + dC * k_m
+        s_dt = dL + dC * k_s
+
+        L = L0 * (1.0 - t) + t * L1
+        C = t * C1
+
+        l_ = L + C * k_l
+        m_ = L + C * k_m
+        s_ = L + C * k_s
+
+        l = l_ * l_ * l_
+        m = m_ * m_ * m_
+        s = s_ * s_ * s_
+
+        ldt = 3 * l_dt * l_ * l_
+        mdt = 3 * m_dt * m_ * m_
+        sdt = 3 * s_dt * s_ * s_
+
+        ldt2 = 6 * l_dt * l_dt * l_
+        mdt2 = 6 * m_dt * m_dt * m_
+        sdt2 = 6 * s_dt * s_dt * s_
+
+        r  =  4.0767416621 * l     - 3.3077115913 * m     + 0.2309699292 * s     - 1
+        r1 =  4.0767416621 * ldt   - 3.3077115913 * mdt   + 0.2309699292 * sdt
+        r2 =  4.0767416621 * ldt2  - 3.3077115913 * mdt2  + 0.2309699292 * sdt2
+
+        u_r = r1 / (r1 * r1 - 0.5 * r * r2)
+        t_r = -r * u_r
+
+        g  = -1.2684380046 * l     + 2.6097574011 * m     - 0.3413193965 * s     - 1
+        g1 = -1.2684380046 * ldt   + 2.6097574011 * mdt   - 0.3413193965 * sdt
+        g2 = -1.2684380046 * ldt2  + 2.6097574011 * mdt2  - 0.3413193965 * sdt2
+
+        u_g = g1 / (g1 * g1 - 0.5 * g * g2)
+        t_g = -g * u_g
+
+        b_  = -0.0041960863 * l     - 0.7034186147 * m     + 1.7076147010 * s     - 1
+        b1  = -0.0041960863 * ldt   - 0.7034186147 * mdt   + 1.7076147010 * sdt
+        b2  = -0.0041960863 * ldt2  - 0.7034186147 * mdt2  + 1.7076147010 * sdt2
+
+        u_b = b1 / (b1 * b1 - 0.5 * b_ * b2)
+        t_b = -b_ * u_b
+
+        t_r = t_r if u_r >= 0.0 else 1e5
+        t_g = t_g if u_g >= 0.0 else 1e5
+        t_b = t_b if u_b >= 0.0 else 1e5
+
+        t += min(t_r, min(t_g, t_b))
+
+    return t
+
+def _toe2(x):
+    k1 = 0.250  # normally 0.206 but 0.250 is more consistent with CIELAB, which is known for its accurate lightness
+    k2 = 0.03
+    k3 = (1.0 + k1) / (1.0 + k2)
+    return 0.5 * (k3 * x - k1 + math.sqrt((k3 * x - k1) ** 2 + 4 * k2 * k3 * x))
+
+def _toe_inv2(x):
+    k1 = 0.250  # normally 0.206 but 0.250 is more consistent with CIELAB, which is known for its accurate lightness
+    k2 = 0.03
+    k3 = (1.0 + k1) / (1.0 + k2)
+    return (x * x + k1 * x) / (k3 * (x + k2))
+
+def rgb_to_corrected_oklab(rgb):
+    L, a, b = rgb_to_oklab(rgb)
+    return (_toe2(L), a, b)
+
+def _tc_untoe2(lab):
+    Lr, a, b = lab
+    L = _toe_inv2(max(0.0, min(1.0, Lr)))
+    return (L, a, b)
+
+def corrected_oklab_to_rgb(lab):
+    return oklab_gc_to_rgb(_tc_untoe2(lab))
+
+def oklab_gc_to_rgb(lab):
+    L, a, b = lab
+
+    C = math.sqrt(a * a + b * b)
+    if C < 1e-10:
+        L0 = max(0.0, min(1.0, L))
+        r, g, b = _oklab_to_linear_srgb(L0, 0, 0)
+        grey = clamp(0, 255, int(_linear_to_srgb(max(0, r)) * 255 + 0.5))
+        return (grey, grey, grey)
+
+    a_ = a / C
+    b_ = b / C
+
+    L0 = max(0.0, min(1.0, L))
+    cusp = _find_cusp(a_, b_)
+    t = _find_gamut_intersection(a_, b_, L, C, L0, cusp)
+    t = min(t, 1.0)
+    L_clipped = L0 + t * (L - L0)
+    C_clipped = t * C
+
+    r, g, b = _oklab_to_linear_srgb(L_clipped, C_clipped * a_, C_clipped * b_)
+    r8 = clamp(0, 255, int(_linear_to_srgb(max(0, r)) * 255 + 0.5))
+    g8 = clamp(0, 255, int(_linear_to_srgb(max(0, g)) * 255 + 0.5))
+    b8 = clamp(0, 255, int(_linear_to_srgb(max(0, b)) * 255 + 0.5))
+    return (r8, g8, b8)
+
+def adjust_lightness_lab(lab, percent_delta: int):
+    l, a, b = lab
+    return (clamp(0, 100, l + percent_delta), a, b)
+
+def adjust_lightness_oklab(oklab, percent_delta: int):
+    l, a, b = oklab
+    return (clamp(0, 1, l + percent_delta / 100), a, b)
+
+
+COLORSPACES = {
+    "lab":   (rgb_to_lab, lab_to_rgb, adjust_lightness_lab),
+    "oklab": (rgb_to_corrected_oklab, corrected_oklab_to_rgb, adjust_lightness_oklab),
+}
+
+DEFAULT_COLORSPACE = "lab"
+to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[DEFAULT_COLORSPACE]
+
+def adjust_lightness_rgb(rgb, percent_delta: int):
+    return from_colorspace(adjust_lightness(to_colorspace(rgb), percent_delta))
 
 class Style:
     def __init__(
@@ -211,49 +453,60 @@ class Block:
             print(content)
 
 def generate_base16_extras(theme):
-    bg_lab = rgb_to_lab(theme.bg)
-    fg_lab = rgb_to_lab(theme.fg)
+    bg_lab = to_colorspace(theme.bg)
+    fg_lab = to_colorspace(theme.fg)
     light = bg_lab[0] > fg_lab[0]
 
     for i in range(8):
         if theme[i + 8] == theme[i]:
-            l, a, b = rgb_to_lab(theme[i])
+            l, a, b = to_colorspace(theme[i])
             l = clamp(0, 100, l * 1.1)
-            theme[i + 8] = lab_to_rgb((l, a, b))
+            theme[i + 8] = from_colorspace((l, a, b))
 
     if theme[0] == theme.bg:
-        l = clamp(0, 100, bg_lab[0] * 0.8)
-        theme[0] = lab_to_rgb((l, bg_lab[1], bg_lab[2]))
+        theme[0] = from_colorspace(adjust_lightness(bg_lab, -(5 if light else 3)))
 
-    l = clamp(0, 100, bg_lab[0] + (-20.0 if light else 20))
-    theme[8] = lab_to_rgb((l, bg_lab[1], bg_lab[2]))
+    theme[8] = from_colorspace(adjust_lightness(bg_lab, (-20 if light else 20)))
 
 def lerp_lab(t, lab1, lab2):
     return tuple(a + t * (b - a) for a, b in zip(lab1, lab2))
 
-def generate_256_palette(base16, bg=None, fg=None):
-    base8_lab = [rgb_to_lab(c) for c in base16[:8]]
-    bg_lab = rgb_to_lab(bg) if bg else base8_lab[0]
-    fg_lab = rgb_to_lab(fg) if fg else base8_lab[7]
+def generate_256_palette(base16, bg=None, fg=None, harmonious=True):
+    bg_lab = to_colorspace(bg) if bg else to_colorspace(base16[0])
+    fg_lab = to_colorspace(fg) if fg else to_colorspace(base16[7])
+
+    is_light_theme = fg_lab[0] < bg_lab[0]
+    invert = is_light_theme and not harmonious
+
+    base8_lab = [
+        fg_lab if invert else bg_lab,
+        to_colorspace(base16[1]),
+        to_colorspace(base16[2]),
+        to_colorspace(base16[3]),
+        to_colorspace(base16[4]),
+        to_colorspace(base16[5]),
+        to_colorspace(base16[6]),
+        bg_lab if invert else fg_lab,
+    ]
 
     palette = [*base16]
 
     for r in range(6):
-        c0 = lerp_lab(r / 5, bg_lab, base8_lab[1])
+        c0 = lerp_lab(r / 5, base8_lab[0], base8_lab[1])
         c1 = lerp_lab(r / 5, base8_lab[2], base8_lab[3])
         c2 = lerp_lab(r / 5, base8_lab[4], base8_lab[5])
-        c3 = lerp_lab(r / 5, base8_lab[6], fg_lab)
+        c3 = lerp_lab(r / 5, base8_lab[6], base8_lab[7])
         for g in range(6):
             c4 = lerp_lab(g / 5, c0, c1)
             c5 = lerp_lab(g / 5, c2, c3)
             for b in range(6):
                 c6 = lerp_lab(b / 5, c4, c5)
-                palette.append(lab_to_rgb(c6))
+                palette.append(from_colorspace(c6))
 
     for i in range(24):
         t = (i + 1) / 25
-        lab = lerp_lab(t, bg_lab, fg_lab)
-        palette.append(lab_to_rgb(lab))
+        lab = lerp_lab(t, base8_lab[0], base8_lab[7])
+        palette.append(from_colorspace(lab))
 
     return palette
 
@@ -533,6 +786,19 @@ def generate_windows_terminal_theme(theme):
         obj[bright_names[i]] = "#%s" % rgb_to_hex(theme[i + 8])
     return json.dumps(obj, indent=4)
 
+def generate_tabby_theme(theme):
+    buffer = []
+    buffer.append("name: '%s'" % theme.name)
+    buffer.append("foreground: '#%s'" % rgb_to_hex(theme.fg))
+    buffer.append("background: '#%s'" % rgb_to_hex(theme.bg))
+    buffer.append("cursor: '#%s'" % rgb_to_hex(theme.fg))
+    buffer.append("selection: '#%s'" % rgb_to_hex(theme.selection))
+    buffer.append("colors:")
+    for i in range(256):
+        buffer.append("  - '#%s'" % rgb_to_hex(theme[i]))
+    return "\n".join(buffer)
+
+
 GENERATE_LOOKUP = {
     'base8': generate_base8_theme,
     'kitty': generate_kitty_theme,
@@ -543,6 +809,7 @@ GENERATE_LOOKUP = {
     'xresources': generate_xresources_theme,
     'st': generate_st_theme,
     'windows-terminal': generate_windows_terminal_theme,
+    'tabby': generate_tabby_theme,
 }
 
 def preview_theme(name, palette, fg=None, bg=None):
@@ -708,16 +975,21 @@ BASELINE_THEME = Theme("Default",
     [hex_to_rgb(c) for c in BASELINE_BASE_16] + BASELINE_RGB + BASELINE_GREYSCALE)
 
 def main():
-    parser = ArgumentParser()
+    parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
     parser.add_argument("--generate", choices=GENERATE_LOOKUP)
     parser.add_argument("--output", type=str)
     parser.add_argument("--baseline", action="store_true")
     parser.add_argument("--adjust-lightness", type=int)
     parser.add_argument("--apply", action="store_true")
+    parser.add_argument("--colorspace", choices=COLORSPACES, default=DEFAULT_COLORSPACE)
+    parser.add_argument("--harmonious", default=True, action=argparse.BooleanOptionalAction)
     parser.add_argument("--test", action="store_true")
     ns = parser.parse_args()
-    
+
+    global to_colorspace, from_colorspace, adjust_lightness
+    to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[ns.colorspace]
+
     themes = list(map(parse_theme, ns.filenames))
 
     if ns.baseline:
@@ -725,10 +997,10 @@ def main():
 
     if ns.adjust_lightness is not None:
         for theme in themes:
-            theme.fg = adjust_lightness(theme.fg, ns.adjust_lightness)
-            theme.bg = adjust_lightness(theme.bg, ns.adjust_lightness)
+            theme.fg = adjust_lightness_rgb(theme.fg, ns.adjust_lightness)
+            theme.bg = adjust_lightness_rgb(theme.bg, ns.adjust_lightness)
             for i in range(min(16, len(theme.palette))):
-                theme[i] = adjust_lightness(theme[i], ns.adjust_lightness)
+                theme[i] = adjust_lightness_rgb(theme[i], ns.adjust_lightness)
 
     for theme in themes:
         if theme != BASELINE_THEME:
@@ -736,7 +1008,7 @@ def main():
             base8 = theme[:8]
             base8[0] = theme.bg
             base8[7] = theme.fg
-            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg)
+            theme.palette = generate_256_palette(theme[:16], bg=theme.bg, fg=theme.fg, harmonious=ns.harmonious)
     
     if ns.generate:
         if ns.output is not None:
