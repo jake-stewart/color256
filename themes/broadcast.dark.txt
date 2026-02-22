@@ -1,0 +1,20 @@
+background #2B2B2B
+foreground #E6E1DC
+
+black #000000
+red #DA4939
+green #519F50
+yellow #FFD24A
+blue #6D9CBE
+magenta #D0D0FF
+cyan #6E9CBE
+white #FFFFFF
+
+bright black #323232
+bright red #FF7B6B
+bright green #83D182
+bright yellow #FFFF7C
+bright blue #9FCEF0
+bright magenta #FFFFFF
+bright cyan #A0CEF0
+bright white #FFFFFF
