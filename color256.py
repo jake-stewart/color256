@@ -1020,7 +1020,7 @@ def main():
             for i in range(min(16, len(theme.palette))):
                 theme[i] = adjust_lightness_rgb(theme[i], ns.adjust_lightness)
 
-    if len(themes) == 0 and ns.generate or ns.apply:
+    if len(themes) == 0 and (ns.generate or ns.apply):
         themes.append(query_theme())
 
     for theme in themes:
