@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 
 import argparse
-import os
-import sys
-import re
 import json
 import math
+import os
+import re
+import sys
+import termios
+import tty
 
 def clamp(low, high, n):
     return max(low, min(high, n))
@@ -300,6 +302,45 @@ to_colorspace, from_colorspace, adjust_lightness = COLORSPACES[DEFAULT_COLORSPAC
 
 def adjust_lightness_rgb(rgb, percent_delta: int):
     return from_colorspace(adjust_lightness(to_colorspace(rgb), percent_delta))
+
+
+def query_colors(codes):
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    tty.setraw(fd)
+
+    for code in codes:
+        os.write(fd, f"\x1b]{code};?\x1b\\".encode())
+
+    os.write(fd, "\x1b[c".encode())
+
+    buf = b""
+    while b"\x1b[?" not in buf:
+        buf += os.read(fd, 4096)
+
+    termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+    results = []
+    for part in buf.decode().split("rgb:")[1:]:
+        channels = part.split("\x1b")[0].split("/")
+        rgb = []
+        for c in channels:
+            if len(c) <= 2:
+                # 8-bit: pad single-digit values by repeating the digit.
+                rgb.append(int(c.rjust(2, c[0]), 16))
+            else:
+                # 16-bit (or wider): take the high-order byte.
+                rgb.append(int(c[:2], 16))
+        results.append(tuple(rgb))
+
+    return results
+
+
+def query_theme():
+    palette = query_colors([
+        "11", *(f"4;{i}" for i in range(1,7)), "10", 
+    ] * 2)
+    return Theme("current", palette)
 
 class Style:
     def __init__(
@@ -979,6 +1020,9 @@ def main():
             for i in range(min(16, len(theme.palette))):
                 theme[i] = adjust_lightness_rgb(theme[i], ns.adjust_lightness)
 
+    if len(themes) == 0 and ns.generate or ns.apply:
+        themes.append(query_theme())
+
     for theme in themes:
         if theme != BASELINE_THEME:
             generate_base16_extras(theme)
@@ -997,9 +1041,6 @@ def main():
                     f.write(GENERATE_LOOKUP[ns.generate](theme))
                     print("generated", fname)
         else:
-            if len(themes) == 0:
-                print("No theme selected", file=sys.stderr)
-                exit(1)
             if len(themes) > 1:
                 print("Can only apply a generate theme unless --output is specified", file=sys.stderr)
                 exit(1)
