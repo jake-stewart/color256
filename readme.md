@@ -7,6 +7,10 @@ https://github.com/user-attachments/assets/d44f3955-e6b7-4942-9b91-3f9dc907e0dc
 ### Usage
 
 ```sh
+# apply the generated 256-palette
+# since no theme is specified, it will detect and use your terminal theme
+python3 color256.py --apply
+
 # view a theme
 python3 color256.py themes/century.dark.txt
 
